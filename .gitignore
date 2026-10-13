@@ -6,3 +6,4 @@ __pycache__/
 checkpoints/*.pth
 checkpoints/*.pt
 data/
+.ipynb_checkpoints/
