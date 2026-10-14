@@ -17,8 +17,9 @@ from models.segmentation_model import EURSSegmenter
 from models.dinov3_backbone import MODEL_ID
 
 
-TRAIN_ROOT = Path(r"C:\Users\student\Downloads\eurs_train\train")
+TRAIN_ROOT = Path(r"<training dataset path")
 NUM_CLASSES = 5
+VAL_SCENES = {"ray1", "seahorse1", "fish11", "fish12"}
 
 # Keep the original 4:3 aspect ratio. Both dimensions are divisible by 16.
 INPUT_SIZE = (512, 384)  # width, height
@@ -64,9 +65,9 @@ class EURSDataset(Dataset):
         return image_tensor, mask_tensor
 
 
-def discover_scenes():
-    degraded_root = TRAIN_ROOT / "degraded"
-    masks_root = TRAIN_ROOT / "gt_masks"
+def discover_scenes(train_root):
+    degraded_root = train_root / "degraded"
+    masks_root = train_root / "gt_masks"
 
     scenes = []
 
@@ -135,7 +136,9 @@ def main():
     parser.add_argument("--max-train-samples", type=int, default=16)
     parser.add_argument("--max-val-samples", type=int, default=8)
     parser.add_argument("--workers", type=int, default=0)
+    parser.add_argument("--train-root",type=Path, default=TRAIN_ROOT, help="Path to training dataset directory")
     args = parser.parse_args()
+    train_root = args.train_root
 
     random.seed(42)
     np.random.seed(42)
@@ -149,16 +152,24 @@ def main():
 
     processor = AutoImageProcessor.from_pretrained(MODEL_ID)
 
-    scenes = discover_scenes()
-    random.shuffle(scenes)
+    scenes = discover_scenes(train_root)
+    scene_names = {scene[0] for scene in scenes}
 
-    # Split by scene, not by image, to prevent related variants leaking
-    # between training and validation.
-    split_index = max(1, int(len(scenes) * 0.8))
-    split_index = min(split_index, len(scenes) - 1)
+    missing = VAL_SCENES - scene_names
+    if missing:
+        raise RuntimeError(
+            f"Validation scenes not found: {sorted(missing)}"
+        )
 
-    train_scenes = scenes[:split_index]
-    val_scenes = scenes[split_index:]
+    val_scenes = [
+        scene for scene in scenes
+        if scene[0] in VAL_SCENES
+    ]
+
+    train_scenes = [
+    scene for scene in scenes
+        if scene[0] not in VAL_SCENES
+    ]
 
     train_samples = build_samples(train_scenes)
     val_samples = build_samples(val_scenes)
