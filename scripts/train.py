@@ -19,9 +19,9 @@ from models.dinov3_backbone import MODEL_ID
 
 TRAIN_ROOT = Path(r"<training dataset path")
 NUM_CLASSES = 5
+CLASS_WEIGHTS = [1.0, 1.0, 2.0, 4.0, 2.5]
 VAL_SCENES = {"ray1", "seahorse1", "fish11", "fish12"}
 
-# Keep the original 4:3 aspect ratio. Both dimensions are divisible by 16.
 INPUT_SIZE = (512, 384)  # width, height
 
 
@@ -221,7 +221,13 @@ def main():
         lr=1e-3,
         weight_decay=1e-4,
     )
-    criterion = nn.CrossEntropyLoss()
+    class_weights = torch.tensor(
+        CLASS_WEIGHTS,
+        dtype=torch.float32,
+        device=device,
+    )
+
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
 
     use_amp = device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
@@ -310,11 +316,11 @@ def main():
             "val_miou": miou,
         }
 
-        torch.save(checkpoint, output_dir / "latest.pt")
+        torch.save(checkpoint, output_dir / "weighted_latest.pt")
 
         if miou > best_miou:
             best_miou = miou
-            torch.save(checkpoint, output_dir / "best.pt")
+            torch.save(checkpoint, output_dir / "weighted_best.pt")
             print("Saved new best checkpoint.")
 
     print("Training finished.")
