@@ -7,3 +7,25 @@ checkpoints/*.pth
 checkpoints/*.pt
 data/
 .ipynb_checkpoints/
+
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Model checkpoints and downloaded weights
+checkpoints/**/*.pth
+checkpoints/**/*.pt
+checkpoints/**/*.ckpt
+checkpoints/**/*.safetensors
+
+# Datasets and generated outputs
+data/
+outputs/
+results/
+
+# macOS
+.DS_Store

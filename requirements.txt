@@ -8,3 +8,17 @@ numpy
 matplotlib
 tqdm
 scikit-learn
+opencv-python
+scikit-image
+yacs
+joblib
+natsort
+h5py
+einops
+gdown
+addict
+future
+lmdb
+PyYAML
+requests
+scipy
