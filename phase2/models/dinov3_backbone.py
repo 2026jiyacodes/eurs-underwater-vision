@@ -20,16 +20,17 @@ class DINOv3Backbone(nn.Module):
         )
         self.freeze = freeze
 
+        # Select representations from transformer blocks 3, 6, 9 and 12.
+        self.feature_indices = (3, 6, 9, 12)
+
         if freeze:
             for param in self.encoder.parameters():
                 param.requires_grad = False
-
             self.encoder.eval()
 
     def train(self, mode=True):
         super().train(mode)
 
-        # Keep the frozen feature extractor in evaluation mode.
         if self.freeze:
             self.encoder.eval()
 
@@ -40,37 +41,44 @@ class DINOv3Backbone(nn.Module):
 
         if self.freeze:
             with torch.no_grad():
-                outputs = self.encoder(pixel_values=pixel_values)
+                outputs = self.encoder(
+                    pixel_values=pixel_values,
+                    output_hidden_states=True,
+                )
         else:
-            outputs = self.encoder(pixel_values=pixel_values)
-
-        # Remove the CLS token and register tokens.
-        tokens = outputs.last_hidden_state
-        patch_tokens = tokens[
-            :, 1 + self.num_register_tokens :, :
-        ]
-
-        # Convert the patch-token sequence into a 2D feature map.
-        grid_h = height // self.patch_size
-        grid_w = width // self.patch_size
-
-        expected_tokens = grid_h * grid_w
-
-        if patch_tokens.shape[1] != expected_tokens:
-            raise ValueError(
-                f"Expected {expected_tokens} patch tokens, "
-                f"but received {patch_tokens.shape[1]}. "
-                "Check the image size and patch size."
+            outputs = self.encoder(
+                pixel_values=pixel_values,
+                output_hidden_states=True,
             )
 
+        grid_h = height // self.patch_size
+        grid_w = width // self.patch_size
+        expected_tokens = grid_h * grid_w
+
         batch_size = pixel_values.shape[0]
+        feature_maps = []
 
-        feature_map = patch_tokens.transpose(1, 2).reshape(
-            batch_size,
-            self.hidden_size,
-            grid_h,
-            grid_w,
-        )
+        for index in self.feature_indices:
+            tokens = outputs.hidden_states[index]
 
-        return feature_map
+            # Remove CLS and register tokens.
+            patch_tokens = tokens[
+                :, 1 + self.num_register_tokens :, :
+            ]
 
+            if patch_tokens.shape[1] != expected_tokens:
+                raise ValueError(
+                    f"Layer {index}: expected {expected_tokens} "
+                    f"patch tokens, got {patch_tokens.shape[1]}."
+                )
+
+            feature_map = patch_tokens.transpose(1, 2).reshape(
+                batch_size,
+                self.hidden_size,
+                grid_h,
+                grid_w,
+            )
+
+            feature_maps.append(feature_map)
+
+        return feature_maps

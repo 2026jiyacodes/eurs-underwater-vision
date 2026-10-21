@@ -17,7 +17,7 @@ from models.segmentation_model import EURSSegmenter
 from models.dinov3_backbone import MODEL_ID
 
 
-TRAIN_ROOT = Path(r"<training dataset path")
+TRAIN_ROOT = Path(".")
 NUM_CLASSES = 5
 CLASS_WEIGHTS = [1.0, 1.0, 2.0, 4.0, 2.5]
 VAL_SCENES = {"ray1", "seahorse1", "fish11", "fish12"}
