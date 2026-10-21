@@ -1,3 +1,6 @@
 [submodule "Restormer"]
 	path = Restormer
 	url = https://github.com/swz30/Restormer.git
+[submodule "eurs-underwater-vision"]
+	path = eurs-underwater-vision
+	url = https://github.com/swz30/Restormer.git
