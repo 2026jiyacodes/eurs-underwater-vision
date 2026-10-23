@@ -11,7 +11,7 @@ from tqdm import tqdm
 # Configuration
 # ------------------------------------------------------------
 
-TRAIN_ROOT = Path(r"C:\Users\student\Downloads\eurs_train\train")
+TRAIN_ROOT = Path(r"C:\Users\maheit\Downloads\eurs_train\train")
 
 MASKS_DIR = TRAIN_ROOT / "gt_masks"
 DEGRADED_DIR = TRAIN_ROOT / "degraded"
