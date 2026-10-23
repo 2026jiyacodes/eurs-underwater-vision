@@ -16,8 +16,8 @@ NUM_CLASSES = 5
 INPUT_SIZE = (512, 384)  # width, height
 
 CHECKPOINTS = {
-    "baseline": ROOT / "checkpoints" / "seg_baseline_best.pt",
-    "weighted": ROOT / "checkpoints" / "weighted_best.pt",
+    "best_epoch1": ROOT / "checkpoints" / "weighted_best.pt",
+    "latest_epoch10": ROOT / "checkpoints" / "weighted_latest.pt",
 }
 
 CLASS_NAMES = [
@@ -146,15 +146,15 @@ def main():
         (original_size[0] * 3, original_size[1]),
     )
     comparison.paste(image, (0, 0))
-    comparison.paste(results["baseline"], (original_size[0], 0))
-    comparison.paste(results["weighted"], (original_size[0] * 2, 0))
+    comparison.paste(results["best_epoch1"], (original_size[0], 0))
+    comparison.paste(results["latest_epoch10"], (original_size[0] * 2, 0))
 
     comparison_path = output_root / f"{image_path.stem}_comparison.png"
     comparison_path.parent.mkdir(parents=True, exist_ok=True)
     comparison.save(comparison_path)
 
     print("\nComparison saved:", comparison_path)
-    print("Panels from left to right: Original | Baseline | Weighted")
+    print("Panels from left to right: Original | best (epoch 1) | latest (epoch 10)")
 
 
 if __name__ == "__main__":

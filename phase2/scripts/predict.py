@@ -15,7 +15,6 @@ from models.dinov3_backbone import MODEL_ID
 
 NUM_CLASSES = 5
 INPUT_SIZE = (512, 384)  # width, height
-CHECKPOINT_PATH = ROOT / "checkpoints" / "seg_baseline_best.pt"
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 
@@ -42,6 +41,14 @@ def main():
         default=0,
         help="Maximum images to process; 0 means process all images.",
     )
+
+    parser.add_argument(
+        "--ckpt",
+        type=Path,
+        default=ROOT / "checkpoints" / "weighted_best.pt",
+        help="Path to the checkpoint file.",
+    )
+
     args = parser.parse_args()
 
     degraded_root = args.dev_root / "degraded"
@@ -51,9 +58,9 @@ def main():
             f"Could not find the degraded directory: {degraded_root}"
         )
 
-    if not CHECKPOINT_PATH.is_file():
+    if not args.ckpt.is_file():
         raise FileNotFoundError(
-            f"Checkpoint not found: {CHECKPOINT_PATH}"
+            f"Checkpoint not found: {args.ckpt}"
         )
 
     image_paths = sorted(
@@ -74,10 +81,10 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
     print(f"Images to process: {len(image_paths)}")
-    print(f"Checkpoint: {CHECKPOINT_PATH}")
+    print(f"Checkpoint: {args.ckpt}")
 
     checkpoint = torch.load(
-        CHECKPOINT_PATH,
+        args.ckpt,
         map_location="cpu",
         weights_only=True,
     )
