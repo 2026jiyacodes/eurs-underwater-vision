@@ -1,90 +1,86 @@
 import os
+import random
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
 import torchvision.transforms.functional as TF
-import random
+
+IMG_EXTS = ('.png', '.jpg', '.jpeg')
+
 
 class EURSRestorationDataset(Dataset):
-    def __init__(self, root_dir, mode='train', patch_size=256):
-        """
-        Args:
-            root_dir: Path to eurs_train/train
-            mode: 'train' or 'val' - determines which scenes to load
-            patch_size: Crop size for training (256 for 16GB VRAM)
-        """
-        self.root_dir = root_dir
+    def __init__(self, root_dir, mode='train', patch_size=256, num_val_scenes=1):
+        assert mode in ('train', 'val'), f"bad mode: {mode}"
         self.patch_size = patch_size
         self.mode = mode
-        
         self.deg_dir = os.path.join(root_dir, 'degraded')
         self.gt_dir = os.path.join(root_dir, 'gt_images')
-        
-        # Get all scenes (subdirectories in degraded/)
-        all_scenes = sorted([
-            scene for scene in os.listdir(self.deg_dir)
-            if os.path.isdir(os.path.join(self.deg_dir, scene))
-        ])
-        
-        # LEAKAGE-PROOF SPLIT: Split by scene, not by image
-        # With 6 scenes, 1 scene for val = ~16% (closest to 10% without leakage)
-        num_val_scenes = max(1, int(len(all_scenes) * 0.10))
+        self._gt_cache = {}
+
+        all_scenes = sorted(
+            s for s in os.listdir(self.deg_dir)
+            if os.path.isdir(os.path.join(self.deg_dir, s))
+        )
+        assert len(all_scenes) > num_val_scenes, "not enough scenes"
         self.val_scenes = all_scenes[-num_val_scenes:]
         self.train_scenes = all_scenes[:-num_val_scenes]
-        
-        print(f"[*] Total scenes: {len(all_scenes)}")
-        print(f"[*] Train scenes ({len(self.train_scenes)}): {self.train_scenes}")
-        print(f"[*] Val scenes ({len(self.val_scenes)}): {self.val_scenes}")
-        
-        # Filter scenes based on mode
-        allowed_scenes = self.train_scenes if mode == 'train' else self.val_scenes
-        
+        assert not set(self.val_scenes) & set(self.train_scenes)
+
+        allowed = self.train_scenes if mode == 'train' else self.val_scenes
+        print(f"[*] {mode}: scenes {allowed}")
+
         self.samples = []
-        for scene in allowed_scenes:
+        for scene in allowed:
+            gt_path = os.path.join(self.gt_dir, f"{scene}.png")
+            if not os.path.exists(gt_path):
+                raise FileNotFoundError(f"Missing GT for scene '{scene}': {gt_path}")
             scene_path = os.path.join(self.deg_dir, scene)
-            gt_img_path = os.path.join(self.gt_dir, f"{scene}.png")
-            
-            if os.path.exists(gt_img_path):
-                for deg_img in os.listdir(scene_path):
-                    if deg_img.lower().endswith(('.png', '.jpg', '.jpeg')):
-                        self.samples.append({
-                            'deg': os.path.join(scene_path, deg_img),
-                            'gt': gt_img_path,
-                            'deg_name': f"{scene}_{deg_img}"
-                        })
-        
-        if len(self.samples) == 0:
-            raise ValueError(f"No samples found for mode={mode}. Check your directory structure.")
-        
-        print(f"✅ {mode.upper()} set: {len(self.samples)} samples loaded.")
+            for name in sorted(os.listdir(scene_path)):
+                if name.lower().endswith(IMG_EXTS):
+                    self.samples.append({
+                        'deg': os.path.join(scene_path, name),
+                        'gt': gt_path,
+                        'deg_name': f"{scene}_{name}",
+                    })
+
+        if not self.samples:
+            raise ValueError(f"No samples for mode={mode}")
+        print(f"✅ {mode.upper()}: {len(self.samples)} samples")
+
+    def _load_gt(self, path):
+        if path not in self._gt_cache:  # cached per worker
+            with Image.open(path) as im:
+                self._gt_cache[path] = im.convert('RGB')
+        return self._gt_cache[path]
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
-        sample = self.samples[idx]
-        deg_img = Image.open(sample['deg']).convert('RGB')
-        gt_img = Image.open(sample['gt']).convert('RGB')
+        s = self.samples[idx]
+        with Image.open(s['deg']) as im:
+            deg = im.convert('RGB')
+        gt = self._load_gt(s['gt'])
 
-        # 1. Random Crop (256x256 for 16GB VRAM)
-        w, h = deg_img.size
-        ps = min(self.patch_size, w, h)
-        x = random.randint(0, w - ps)
-        y = random.randint(0, h - ps)
-        
-        deg_img = TF.crop(deg_img, y, x, ps, ps)
-        gt_img = TF.crop(gt_img, y, x, ps, ps)
+        assert deg.size == gt.size, f"size mismatch {s['deg_name']}: {deg.size} vs {gt.size}"
+        w, h = deg.size
+        ps = self.patch_size
+        assert w >= ps and h >= ps, f"{s['deg_name']} smaller than patch {ps}"
 
-        # 2. Random Augmentations
-        if random.random() > 0.5:
-            deg_img = TF.hflip(deg_img)
-            gt_img = TF.hflip(gt_img)
-        if random.random() > 0.5:
-            deg_img = TF.vflip(deg_img)
-            gt_img = TF.vflip(gt_img)
+        if self.mode == 'train':
+            x = random.randint(0, w - ps)
+            y = random.randint(0, h - ps)
+        else:  # deterministic center crop
+            x = (w - ps) // 2
+            y = (h - ps) // 2
 
-        # 3. Convert to Tensor [0, 1]
-        deg_tensor = TF.to_tensor(deg_img)
-        gt_tensor = TF.to_tensor(gt_img)
+        deg = TF.crop(deg, y, x, ps, ps)
+        gt = TF.crop(gt, y, x, ps, ps)
 
-        return deg_tensor, gt_tensor, sample['deg_name']
+        if self.mode == 'train':
+            if random.random() > 0.5:
+                deg, gt = TF.hflip(deg), TF.hflip(gt)
+            if random.random() > 0.5:
+                deg, gt = TF.vflip(deg), TF.vflip(gt)
+
+        return TF.to_tensor(deg), TF.to_tensor(gt), s['deg_name']
