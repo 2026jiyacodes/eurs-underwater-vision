@@ -1,21 +1,23 @@
 import os
 
 # ==============================================================================
-# 1. DATA PATHS (UPDATE THIS FOR KAGGLE)
+# 1. DATA PATHS (UPDATE THIS)
 # ==============================================================================
-DATA_ROOT = "/kaggle/input/YOUR_DATASET_NAME_HERE/eurs_train/train"
+# Local: r"C:\Users\maheit\Downloads\eurs_train\train"
+# Kaggle: "/kaggle/input/YOUR_DATASET_NAME/eurs_train/train"
+DATA_ROOT = r"C:\Users\maheit\Downloads\eurs_train\train"
 DEGRADED_DIR = os.path.join(DATA_ROOT, 'degraded')
 GT_DIR = os.path.join(DATA_ROOT, 'gt_images')
 CHECKPOINT_DIR = "phase1/checkpoints"
 
 # ==============================================================================
-# 2. TRAINING HYPERPARAMETERS (Optimized for Kaggle 16GB VRAM)
+# 2. TRAINING HYPERPARAMETERS (Optimized for 16GB VRAM)
 # ==============================================================================
-IMG_SIZE = 256          # 256x256 crops
-BATCH_SIZE = 4          # Safe for 16GB with Full Restormer. (Drop to 2 if OOM)
-NUM_EPOCHS = 50
+IMG_SIZE = 256          # 256x256 random crops (upgraded from 128)
+BATCH_SIZE = 4          # Safe for 16GB with AMP
+NUM_EPOCHS = 50         # Proper training duration (upgraded from 10)
 LEARNING_RATE = 1e-4
-NUM_WORKERS = 2         
+NUM_WORKERS = 2         # Faster data loading
 
 # ==============================================================================
 # 3. FULL RESTORMER ARCHITECTURE
