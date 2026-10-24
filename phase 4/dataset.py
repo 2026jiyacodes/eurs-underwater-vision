@@ -7,6 +7,12 @@ import random
 
 class EURSRestorationDataset(Dataset):
     def __init__(self, root_dir, mode='train', patch_size=256):
+        """
+        Args:
+            root_dir: Path to eurs_train/train
+            mode: 'train' or 'val' - determines which scenes to load
+            patch_size: Crop size for training (256 for 16GB VRAM)
+        """
         self.root_dir = root_dir
         self.patch_size = patch_size
         self.mode = mode
@@ -21,6 +27,7 @@ class EURSRestorationDataset(Dataset):
         ])
         
         # LEAKAGE-PROOF SPLIT: Split by scene, not by image
+        # With 6 scenes, 1 scene for val = ~16% (closest to 10% without leakage)
         num_val_scenes = max(1, int(len(all_scenes) * 0.10))
         self.val_scenes = all_scenes[-num_val_scenes:]
         self.train_scenes = all_scenes[:-num_val_scenes]
@@ -59,7 +66,7 @@ class EURSRestorationDataset(Dataset):
         deg_img = Image.open(sample['deg']).convert('RGB')
         gt_img = Image.open(sample['gt']).convert('RGB')
 
-        # 1. Random Crop
+        # 1. Random Crop (256x256 for 16GB VRAM)
         w, h = deg_img.size
         ps = min(self.patch_size, w, h)
         x = random.randint(0, w - ps)
