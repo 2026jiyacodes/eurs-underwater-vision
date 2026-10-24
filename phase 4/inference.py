@@ -17,7 +17,7 @@ def inference(input_dir, output_dir):
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # 1. Load Model (FULL RESTORMER)
+    # 1. Load Model (Full Restormer)
     model = Restormer(
         inp_channels=3, out_channels=3, dim=RESTORMER_DIM,
         num_blocks=RESTORMER_NUM_BLOCKS, 
@@ -68,7 +68,7 @@ def inference(input_dir, output_dir):
                 # Convert to tensor [0, 1] and add batch dimension
                 img_tensor = TF.to_tensor(img).unsqueeze(0).to(device)
                 
-                # Forward pass (Full resolution, no resizing needed for inference)
+                # Forward pass (Full resolution)
                 pred = model(img_tensor)
                 
                 # Post-process
@@ -85,8 +85,8 @@ def inference(input_dir, output_dir):
 
 if __name__ == '__main__':
     # UPDATE THESE PATHS when you are ready to generate outputs!
-    # INPUT_DIR = "/kaggle/input/YOUR_DATASET/eurs_train/train/degraded" # For validation
-    # OUTPUT_DIR = "/kaggle/working/restored_images"
+    # INPUT_DIR = r"C:\Users\maheit\Downloads\eurs_train\train\degraded"
+    # OUTPUT_DIR = r"C:\Users\maheit\Downloads\restored_images"
     
     # inference(INPUT_DIR, OUTPUT_DIR)
     pass
