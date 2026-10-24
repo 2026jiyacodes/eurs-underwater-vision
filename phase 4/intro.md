@@ -11,7 +11,9 @@ This guide covers the step-by-step local installation, dataset setup, and common
 ## 2. Step-by-Step Local Installation and Updation
 
 cd eurs-underwater-vision
+
 git pull origin main
+
 git submodule update --init --recursive
 
 
