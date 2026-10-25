@@ -13,7 +13,7 @@ from models import JointPipeline
 # 1. CONFIGURATION & HYPERPARAMETERS
 # ==========================================
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-NUM_CLASSES = 10  # TODO: Change to your actual number of classes
+NUM_CLASSES = 3  # TODO: Change to your actual number of classes
 BATCH_SIZE = 8    
 EPOCHS = 50
 LEARNING_RATE = 1e-4
