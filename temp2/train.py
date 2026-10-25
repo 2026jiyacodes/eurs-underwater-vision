@@ -20,8 +20,8 @@ from models import JointPipeline
 # ==========================================
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 NUM_CLASSES = 5
-BATCH_SIZE = 4   
-EPOCHS = 50
+BATCH_SIZE = 8   
+EPOCHS = 30
 LEARNING_RATE = 1e-4
 
 # Loss Weights
@@ -96,8 +96,8 @@ scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
 train_dataset = EURSJointDataset(root_dir=DATA_ROOT, mode='train', patch_size=256)
 val_dataset = EURSJointDataset(root_dir=DATA_ROOT, mode='val', patch_size=256)
 
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0, pin_memory=True)
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0, pin_memory=True)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2, pin_memory=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=2, pin_memory=True)
 
 # ==========================================
 # 5. LOSS FUNCTIONS & METRICS
@@ -178,7 +178,7 @@ for epoch in range(EPOCHS):
     print(f"✅ Epoch {epoch+1} Average Train Loss: {epoch_loss / len(train_loader):.4f}")
     
     # --- VALIDATION PHASE (Every 5 epochs) ---
-    if (epoch + 1) % 5 == 0:
+    if (epoch + 1) % 10 == 0:
         student_model.eval()
         all_per_class_iou = [[] for _ in range(NUM_CLASSES)]
         uiqm_scores, uciqe_scores, sharpness_scores = [], [], []
