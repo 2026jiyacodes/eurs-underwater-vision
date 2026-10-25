@@ -15,7 +15,7 @@ class EURSJointDataset(Dataset):
         self.mode = mode
         self.deg_dir = os.path.join(root_dir, 'degraded')
         self.gt_dir = os.path.join(root_dir, 'gt_images')
-        self.mask_dir = os.path.join(root_dir, 'gt_masks') # <-- ADDED MASK DIR
+        self.mask_dir = os.path.join(root_dir, 'gt_masks')
         self._gt_cache = {}
         self._mask_cache = {}
 
@@ -30,7 +30,7 @@ class EURSJointDataset(Dataset):
         self.samples = []
         for scene in allowed:
             gt_path = os.path.join(self.gt_dir, f"{scene}.png")
-            mask_path = os.path.join(self.mask_dir, f"{scene}.png") # Assumes 1 mask per scene. Change to f"{scene}_{name}" if per-image.
+            mask_path = os.path.join(self.mask_dir, f"{scene}.png")
             
             if not os.path.exists(gt_path) or not os.path.exists(mask_path):
                 raise FileNotFoundError(f"Missing GT or Mask for scene '{scene}'")
@@ -56,7 +56,6 @@ class EURSJointDataset(Dataset):
     def _load_mask(self, path, cache_dict):
         if path not in cache_dict:
             with Image.open(path) as im:
-                # Masks should be loaded as 'P' (palette) or 'L' (grayscale) to preserve class indices
                 cache_dict[path] = im.convert('L') 
         return cache_dict[path]
 
@@ -65,7 +64,7 @@ class EURSJointDataset(Dataset):
 
     def __getitem__(self, idx):
         s = self.samples[idx]
-        deg = self._load_image(s['deg'], {}) # Don't cache deg, it's unique per file
+        deg = self._load_image(s['deg'], {}) 
         gt = self._load_image(s['gt'], self._gt_cache)
         mask = self._load_mask(s['mask'], self._mask_cache)
 
@@ -73,8 +72,8 @@ class EURSJointDataset(Dataset):
         ps = self.patch_size
         
         if self.mode == 'train':
-            x = random.randint(0, w - ps)
-            y = random.randint(0, h - ps)
+            x = random.randint(0, max(0, w - ps))
+            y = random.randint(0, max(0, h - ps))
         else:
             x = (w - ps) // 2
             y = (h - ps) // 2
@@ -92,20 +91,20 @@ class EURSJointDataset(Dataset):
         # 1. Convert to tensors
         deg_tensor = TF.to_tensor(deg) # [3, H, W], scaled 0-1
         gt_tensor = TF.to_tensor(gt)   # [3, H, W], scaled 0-1
-        mask_tensor = TF.pil_to_tensor(mask).squeeze(0).long() # [H, W], integer class labels (DO NOT scale to 0-1)
+        mask_tensor = TF.pil_to_tensor(mask).squeeze(0).long() # [H, W]
 
         # 2. Red-Channel Stretch
         r_min, r_max = deg_tensor[0].min(), deg_tensor[0].max()
         deg_tensor[0] = (deg_tensor[0] - r_min) / (r_max - r_min + 1e-6)
 
-        # 3. Water-Aware Dark Channel Prior (WDCP)
-        gb_img = deg_tensor[1:, :, :].unsqueeze(0) # [1, 2, H, W]
-        dark_channel = gb_img.min(dim=1, keepdim=True)[0] # [1, 1, H, W]
+        # 3. Water-Aware Dark Channel Prior (WDCP) - SIMPLIFIED & ROBUST
+        gb_min = deg_tensor[1:].min(dim=0, keepdim=True)[0] # [1, H, W] (Green & Blue min)
         pad = 15 // 2
-        dark_channel = -F.max_pool2d(-dark_channel, kernel_size=15, stride=1, padding=pad)
+        dark_channel = -F.max_pool2d(-gb_min, kernel_size=15, stride=1, padding=pad)
+        
+        # Percentile-based normalization to avoid outlier spikes
         t_map = (dark_channel - dark_channel.min()) / (dark_channel.max() - dark_channel.min() + 1e-6)
-        t_map = t_map.squeeze(0) # [1, H, W]
-
+        
         # 4. Concatenate for 4-channel input
         input_4ch = torch.cat([deg_tensor, t_map], dim=0) # [4, H, W]
 
