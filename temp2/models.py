@@ -69,9 +69,17 @@ class GatedFeatureFusion(nn.Module):
         )
 
     def forward(self, vit_feat, restormer_feat):
+        # CRITICAL FIX: Upsample restormer_feat to match vit_feat resolution
+        if restormer_feat.shape[2:] != vit_feat.shape[2:]:
+            restormer_feat = F.interpolate(
+                restormer_feat, 
+                size=vit_feat.shape[2:], 
+                mode='bilinear', 
+                align_corners=False
+            )
+        
         gate_weights = self.gate_net(restormer_feat)
         return vit_feat + (restormer_feat * gate_weights)
-
 
 # ==========================================
 # MICRO-RESTORMER
