@@ -118,13 +118,10 @@ metric_psnr = PeakSignalNoiseRatio(data_range=1.0).to(DEVICE)
 metric_ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(DEVICE)
 metric_miou = MeanIoU(num_classes=NUM_CLASSES).to(DEVICE)
 
-try:
-    import pyiqa
-    nr_metrics = {'uiqm': pyiqa.create_metric('uiqm', device=DEVICE), 'uciqe': pyiqa.create_metric('uciqe', device=DEVICE)}
-    print("✅ NR Quality Metrics (UIQM/UCIQE) loaded")
-except ImportError:
-    print("⚠️ pyiqa not installed. Install with: pip install pyiqa")
-    nr_metrics = None
+# NR Quality Metrics (UIQM/UCIQE) - SKIPPED 
+# Genuine high PSNR/SSIM naturally improves NR scores without risking "gameable" oversaturation artifacts.
+nr_metrics = None
+print("⚠️ NR Quality Metrics skipped. Focusing on genuine PSNR/SSIM/Qseg optimization.")
 
 def compute_dino_perceptual_loss(restored_img, gt_img, teacher_model):
     resize_transform = T.Resize((224, 224))
