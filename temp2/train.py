@@ -105,7 +105,8 @@ val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_w
 criterion_pixel = nn.L1Loss()
 
 # TODO: REPLACE THESE WITH THE ACTUAL OUTPUT FROM calculate_class_weights.py
-CLASS_WEIGHTS = [0.5234, 3.8921, 2.1456, 8.2341, 5.2048] 
+CLASS_WEIGHTS = [0.05339530451974263, 0.08754919735474437, 0.37843717785610587, 3.1444691334038466, 1.3361491868655606]
+
 class_weights_tensor = torch.tensor(CLASS_WEIGHTS, dtype=torch.float32).to(DEVICE)
 
 criterion_ce = nn.CrossEntropyLoss(weight=class_weights_tensor)
