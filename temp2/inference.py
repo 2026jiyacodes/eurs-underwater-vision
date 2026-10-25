@@ -8,7 +8,7 @@ import numpy as np
 from models import JointPipeline
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-NUM_CLASSES = 3
+NUM_CLASSES = 5
 
 def preprocess_image(image_path, patch_size=256):
     """Applies the exact same Physics Front-End as the training dataset."""
@@ -43,7 +43,7 @@ def main():
     model = JointPipeline(num_classes=NUM_CLASSES).to(DEVICE)
     
     # TODO: Point this to your trained checkpoint
-    checkpoint_path = 'best_model.pth' 
+    checkpoint_path = 'checkpoints/bbest_composite_model.pth' 
     model.load_state_dict(torch.load(checkpoint_path, map_location=DEVICE))
     model.eval()
     
