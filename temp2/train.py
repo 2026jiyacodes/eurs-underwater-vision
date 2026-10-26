@@ -21,7 +21,7 @@ from models import JointPipeline
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 NUM_CLASSES = 5
 BATCH_SIZE = 8   
-EPOCHS = 30
+EPOCHS = 12
 LEARNING_RATE = 1e-4
 
 # Loss Weights
