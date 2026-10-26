@@ -16,23 +16,28 @@ from dataset import EURSJointDataset
 from models import JointPipeline
 
 # ==========================================
-# 1. CONFIGURATION & HYPERPARAMETERS (MOVED TO TOP TO FIX DEVICE BUG)
+# 1. CONFIGURATION & HYPERPARAMETERS
 # ==========================================
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 NUM_CLASSES = 5
 BATCH_SIZE = 8   
-EPOCHS = 12
-LEARNING_RATE = 5e-4
+EPOCHS = 10  # Set to 10 for the 2-hour test run
+LEARNING_RATE = 1e-4  # Lowered to 1e-4 for stable fresh starts
 
 # Loss Weights
 LAMBDA_PIXEL = 1.0      
 LAMBDA_PERCEPTUAL = 0.5 
-LAMBDA_SEG = 30.0       
+
+# 🎯 CURRICULUM LEARNING CONFIGURATION
+BASE_LAMBDA_SEG = 1.0       # Safe weight for Epochs 1-3 (Establishes PSNR baseline)
+HIGH_LAMBDA_SEG = 5.0       # Strong weight for Epochs 4+ (Forces segmentation learning)
+WARMUP_EPOCHS = 3           # Number of epochs to use the safe weight
+
 LAMBDA_VIT_DISTILL = 0.5 
-LAMBDA_SHARPNESS = 0.1   # Anti-blur signal (10% of restoration score)
+LAMBDA_SHARPNESS = 0.1   
 
 DATA_ROOT = '/kaggle/input/datasets/jiyachandna/eurs-train/train'
-IOU_THRESHOLD = 0.1 # Coverage penalty threshold
+IOU_THRESHOLD = 0.1 
 
 # ==========================================
 # 2. LOSS CLASSES
@@ -56,7 +61,7 @@ class SharpnessLoss(nn.Module):
     def __init__(self):
         super().__init__()
         self.kernel = torch.tensor([[0, 1, 0], [1, -4, 1], [0, 1, 0]], dtype=torch.float32).view(1, 1, 3, 3)
-        self.kernel = self.kernel.repeat(3, 1, 1, 1).to(DEVICE) # Now DEVICE is defined!
+        self.kernel = self.kernel.repeat(3, 1, 1, 1).to(DEVICE) 
         
     def forward(self, pred, target):
         pred_edges = F.conv2d(pred, self.kernel, padding=1, groups=3)
@@ -79,6 +84,7 @@ def calculate_per_class_iou(preds, targets, num_classes):
 # ==========================================
 print("🚀 Initializing Student Model...")
 student_model = JointPipeline(num_classes=NUM_CLASSES).to(DEVICE)
+
 # 🔄 RESUME TRAINING CHECK
 checkpoint_path = 'checkpoints/best_composite_model.pth'
 if os.path.exists(checkpoint_path):
@@ -87,11 +93,6 @@ if os.path.exists(checkpoint_path):
     print("✅ Weights loaded! NOT starting from scratch.")
 else:
     print("🚀 Starting fresh (no checkpoint found).")
-
-
-
-
-
 
 print("🧊 Initializing Frozen DINO Teacher...")
 teacher_dino = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14').to(DEVICE)
@@ -111,14 +112,13 @@ val_dataset = EURSJointDataset(root_dir=DATA_ROOT, mode='val', patch_size=256)
 
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2, pin_memory=True)
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=2, pin_memory=True)
+
 # ==========================================
 # 5. LOSS FUNCTIONS & METRICS
 # ==========================================
 criterion_pixel = nn.L1Loss()
 
-# TODO: REPLACE THESE WITH THE ACTUAL OUTPUT FROM calculate_class_weights.py
 CLASS_WEIGHTS = [0.05339530451974263, 0.08754919735474437, 0.37843717785610587, 3.1444691334038466, 1.3361491868655606]
-
 class_weights_tensor = torch.tensor(CLASS_WEIGHTS, dtype=torch.float32).to(DEVICE)
 
 criterion_ce = nn.CrossEntropyLoss(weight=class_weights_tensor)
@@ -130,8 +130,6 @@ metric_psnr = PeakSignalNoiseRatio(data_range=1.0).to(DEVICE)
 metric_ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(DEVICE)
 metric_miou = MeanIoU(num_classes=NUM_CLASSES).to(DEVICE)
 
-# NR Quality Metrics (UIQM/UCIQE) - SKIPPED 
-# Genuine high PSNR/SSIM naturally improves NR scores without risking "gameable" oversaturation artifacts.
 nr_metrics = None
 print("⚠️ NR Quality Metrics skipped. Focusing on genuine PSNR/SSIM/Qseg optimization.")
 
@@ -175,22 +173,32 @@ for epoch in range(EPOCHS):
         loss_perceptual = compute_dino_perceptual_loss(restored_img, gt_img, teacher_dino)
         loss_vit_distill = compute_vit_dino_distill_loss(vit_tokens, gt_img, teacher_dino)
         
+        # 🎯 CURRICULUM LEARNING: Dynamically scale segmentation weight
+        current_lambda_seg = HIGH_LAMBDA_SEG if (epoch + 1) > WARMUP_EPOCHS else BASE_LAMBDA_SEG
+        
         total_loss = (LAMBDA_PIXEL * loss_pixel) + (LAMBDA_PERCEPTUAL * loss_perceptual) + \
-                     (LAMBDA_SEG * loss_seg) + (LAMBDA_VIT_DISTILL * loss_vit_distill) + \
+                     (current_lambda_seg * loss_seg) + (LAMBDA_VIT_DISTILL * loss_vit_distill) + \
                      (LAMBDA_SHARPNESS * loss_sharpness)
         
         total_loss.backward()
-        torch.nn.utils.clip_grad_norm_(student_model.parameters(), max_norm=10.0)
+        # Safe gradient clipping to prevent explosion
+        torch.nn.utils.clip_grad_norm_(student_model.parameters(), max_norm=1.0) 
         optimizer.step()
         
         epoch_loss += total_loss.item()
-        pbar.set_postfix({'Total': f"{total_loss.item():.4f}", 'Pixel': f"{loss_pixel.item():.4f}", 'Sharp': f"{loss_sharpness.item():.4f}", 'Seg': f"{loss_seg.item():.4f}"})
+        pbar.set_postfix({
+            'Total': f"{total_loss.item():.4f}", 
+            'Pixel': f"{loss_pixel.item():.4f}", 
+            'Sharp': f"{loss_sharpness.item():.4f}", 
+            'Seg': f"{loss_seg.item():.4f}",
+            'L_Seg': f"{current_lambda_seg:.1f}" # Shows the dynamic weight in the progress bar
+        })
 
     scheduler.step()
     print(f"✅ Epoch {epoch+1} Average Train Loss: {epoch_loss / len(train_loader):.4f}")
     
-    # --- VALIDATION PHASE (Every 5 epochs) ---
-    if True:  # Validate EVERY epoch
+    # --- VALIDATION PHASE (Every epoch) ---
+    if True:  
         student_model.eval()
         all_per_class_iou = [[] for _ in range(NUM_CLASSES)]
         uiqm_scores, uciqe_scores, sharpness_scores = [], [], []
@@ -209,7 +217,6 @@ for epoch in range(EPOCHS):
                 for class_id in range(NUM_CLASSES):
                     all_per_class_iou[class_id].append(batch_per_class_iou[class_id])
                 
-                # Track Sharpness
                 laplacian = F.conv2d(val_restored, criterion_sharpness.kernel, padding=1, groups=3)
                 sharpness_scores.append(laplacian.var(dim=[1, 2, 3]).mean().item())
                 
@@ -231,7 +238,6 @@ for epoch in range(EPOCHS):
             avg_uiqm = np.mean(uiqm_scores) if uiqm_scores else 0
             avg_uciqe = np.mean(uciqe_scores) if uciqe_scores else 0
             
-            # 🎯 FULL COMPOSITE SCORE CALCULATION
             psnr_norm = np.clip((current_psnr - 15) / (35 - 15), 0, 1)
             sharpness_norm = np.clip(avg_sharpness / 100.0, 0, 1)
             uiqm_norm = np.clip(avg_uiqm / 5.0, 0, 1)
@@ -250,7 +256,6 @@ for epoch in range(EPOCHS):
             
             metric_psnr.reset(); metric_ssim.reset(); metric_miou.reset()
             
-            # 💾 SAVE BEST MODELS
             if current_psnr > best_psnr:
                 best_psnr = current_psnr
                 torch.save(student_model.state_dict(), 'checkpoints/best_psnr_model.pth')
