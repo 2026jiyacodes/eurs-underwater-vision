@@ -27,7 +27,7 @@ LEARNING_RATE = 1e-4
 # Loss Weights
 LAMBDA_PIXEL = 1.0      
 LAMBDA_PERCEPTUAL = 0.5 
-LAMBDA_SEG = 1.0        
+LAMBDA_SEG = 10.0        
 LAMBDA_VIT_DISTILL = 0.5 
 LAMBDA_SHARPNESS = 0.1   # Anti-blur signal (10% of restoration score)
 
