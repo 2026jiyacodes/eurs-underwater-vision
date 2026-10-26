@@ -180,7 +180,7 @@ for epoch in range(EPOCHS):
                      (LAMBDA_SHARPNESS * loss_sharpness)
         
         total_loss.backward()
-        torch.nn.utils.clip_grad_norm_(student_model.parameters(), max_norm=1.0)
+        torch.nn.utils.clip_grad_norm_(student_model.parameters(), max_norm=10.0)
         optimizer.step()
         
         epoch_loss += total_loss.item()
