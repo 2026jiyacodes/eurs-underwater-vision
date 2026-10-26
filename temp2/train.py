@@ -79,6 +79,19 @@ def calculate_per_class_iou(preds, targets, num_classes):
 # ==========================================
 print("🚀 Initializing Student Model...")
 student_model = JointPipeline(num_classes=NUM_CLASSES).to(DEVICE)
+# 🔄 RESUME TRAINING CHECK
+checkpoint_path = 'checkpoints/best_composite_model.pth'
+if os.path.exists(checkpoint_path):
+    print(f"🔄 RESUMING! Loading weights from {checkpoint_path}...")
+    student_model.load_state_dict(torch.load(checkpoint_path, map_location=DEVICE))
+    print("✅ Weights loaded! NOT starting from scratch.")
+else:
+    print("🚀 Starting fresh (no checkpoint found).")
+
+
+
+
+
 
 print("🧊 Initializing Frozen DINO Teacher...")
 teacher_dino = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14').to(DEVICE)
@@ -96,8 +109,8 @@ scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
 train_dataset = EURSJointDataset(root_dir=DATA_ROOT, mode='train', patch_size=256)
 val_dataset = EURSJointDataset(root_dir=DATA_ROOT, mode='val', patch_size=256)
 
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, pin_memory=True, persistent_workers=True)
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4, pin_memory=True, persistent_workers=True)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2, pin_memory=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=2, pin_memory=True)
 # ==========================================
 # 5. LOSS FUNCTIONS & METRICS
 # ==========================================
