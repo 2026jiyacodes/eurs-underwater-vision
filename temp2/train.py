@@ -190,7 +190,7 @@ for epoch in range(EPOCHS):
     print(f"✅ Epoch {epoch+1} Average Train Loss: {epoch_loss / len(train_loader):.4f}")
     
     # --- VALIDATION PHASE (Every 5 epochs) ---
-    if (epoch + 1) % 10 == 0:
+    if True:  # Validate EVERY epoch
         student_model.eval()
         all_per_class_iou = [[] for _ in range(NUM_CLASSES)]
         uiqm_scores, uciqe_scores, sharpness_scores = [], [], []
